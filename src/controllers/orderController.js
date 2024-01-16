@@ -213,14 +213,45 @@ const update = async (req, res, next) => {
     }
 };
 
-// [DELETE] api/order/:id
+// // [DELETE] api/order/:id
+// const destroy = async (req, res, next) => {
+//     if (!req.params.id) {
+//         return res.status(400).json({ success: false, status: 400, message: 'Missed id' });
+//     }
+
+//     try {
+//         await Order.delete({ id: req.params.id });
+//         return res.status(200).json({ success: true });
+//     } catch (err) {
+//         console.log(err);
+//         return res.status(500).json({ success: false, status: 500, message: 'Internal server error' });
+//     }
+// };
+
+//[DELETE] api / order /: id
 const destroy = async (req, res, next) => {
-    if (!req.params.id) {
+    const orderId = req.params.id;
+    if (!orderId) {
         return res.status(400).json({ success: false, status: 400, message: 'Missed id' });
     }
 
     try {
-        await Order.delete({ id: req.params.id });
+        console.log("bbbbbbbbbbbbbbbbbbbbbbbbbbbbb" + orderId)
+        // Truy xuất chi tiết đơn hàng
+        const orderDetails = await DetailOrder.find({ id: orderId });
+
+        // Chuẩn bị dữ liệu để cập nhật số lượng sản phẩm
+        const updateQuantityTasks = orderDetails.map(detail => ({
+            product: detail.product,
+            quantity: detail.quantity // Số lượng để trả lại
+        }));
+        console.log("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        console.log(updateQuantityTasks);
+        // Cập nhật số lượng sản phẩm
+        await restoreProductQuantity(updateQuantityTasks);
+
+        // Xóa đơn hàng
+        await Order.delete({ _id: orderId });
         return res.status(200).json({ success: true });
     } catch (err) {
         console.log(err);
@@ -228,4 +259,42 @@ const destroy = async (req, res, next) => {
     }
 };
 
+//Hàm để trả lại số lượng sản phẩm
+// const restoreProductQuantity = async (detailObjs) => {
+//     const tasks = detailObjs.map(async ({ product, quantity }) => {
+//         console.log("cccccccccccccccccccc: " + product + "|||cccccccc: " + quantity)
+//         if (mongoose.Types.ObjectId.isValid(product)) {
+//             console.log('checkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk Valid ObjectId');
+//           } else {
+//             console.log('nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn Invalid ObjectId');
+//           }
+//         return Product.findByIdAndUpdate(product, { quantity: quantity } , { new: true });
+//     });
+
+//     return Promise.all(tasks).catch((error) => {
+//         console.log('Error in restoring product quantity:', error);
+//         // Xử lý thêm tùy theo nhu cầu
+//     });
+// };
+
+const restoreProductQuantity = async (detailObjs) => {
+    const tasks = detailObjs.map(async ({ product, quantity }) => {
+        console.log("cccccccccccccccccccc: " + product + "|||cccccccc: " + quantity)
+        
+        const existingProduct = await Product.findOne({product});
+        console.log("ccccccccccccccccc" + existingProduct)
+
+        if (existingProduct) {
+            // Cộng thêm số lượng đã bán vào số lượng hiện tại
+
+            console.log("aaaaaaaaaaaaaa" + existingProduct.quantity)
+            const newQuantity = existingProduct.quantity + quantity;
+            return Product.findByIdAndUpdate(product, { quantity: newQuantity }, { new: true });
+        }
+    });
+
+    return Promise.all(tasks);
+};
+
 module.exports = { read, create, readOne, update, destroy };
+
